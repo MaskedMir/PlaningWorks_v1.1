@@ -10,7 +10,7 @@ services:
       RABBITMQ_DEFAULT_PASS: guest
 
   db:
-    image: postgres:13
+    image: postgres:17
     environment:
       POSTGRES_USER: adminka
       POSTGRES_PASSWORD: huivamanedb
