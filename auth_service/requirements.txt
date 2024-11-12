@@ -1,5 +1,0 @@
-fastapi
-pydantic
-passlib[bcrypt]
-pika
-uvicorn

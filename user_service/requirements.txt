@@ -1,3 +1,6 @@
 fastapi
+sqlalchemy
+asyncpg
 pika
 uvicorn
+psycopg2

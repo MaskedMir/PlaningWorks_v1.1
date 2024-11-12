@@ -1,21 +1,71 @@
-from fastapi import FastAPI
-import pika
+from fastapi import FastAPI, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from models import User, Base
+from database import engine, get_session
+from sqlalchemy import select
 import os
+import pika
+import time
+
+rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
+params = pika.URLParameters(rabbitmq_url)
+
+# Пробуем подключиться к RabbitMQ с несколькими попытками
+for attempt in range(5):
+    try:
+        connection = pika.BlockingConnection(params)
+        channel = connection.channel()
+        channel.queue_declare(queue="user_queue")
+        print("Успешное подключение к RabbitMQ")
+        break
+    except pika.exceptions.AMQPConnectionError as e:
+        print(f"Попытка подключения {attempt + 1} не удалась, повтор через 5 секунд...")
+        time.sleep(5)
+else:
+    print("Не удалось подключиться к RabbitMQ после 5 попыток")
 
 app = FastAPI()
 
-# Настройка RabbitMQ для прослушивания очереди
-rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
-connection = pika.BlockingConnection(pika.URLParameters(rabbitmq_url))
-channel = connection.channel()
-channel.queue_declare(queue='auth_queue')
 
-def callback(ch, method, properties, body):
-    print(f"Received message from Auth Service: {body}")
-
-channel.basic_consume(queue='auth_queue', on_message_callback=callback, auto_ack=True)
-
+# Создание таблиц
 @app.on_event("startup")
 async def startup():
-    print("Starting User Service and listening to RabbitMQ messages...")
-    channel.start_consuming()
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+
+# Подключение к RabbitMQ
+import os
+import pika
+
+rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
+params = pika.URLParameters(rabbitmq_url)
+connection = pika.BlockingConnection(params)
+channel = connection.channel()
+channel.queue_declare(queue="user_queue")
+
+
+# Асинхронное добавление пользователя
+@app.post("/users/")
+async def create_user(name: str, email: str, password: str, session: AsyncSession = Depends(get_session)):
+    new_user = User(username=name, email=email, password=password)
+    session.add(new_user)
+    await session.commit()
+    await session.refresh(new_user)
+
+    # Отправляем сообщение в очередь RabbitMQ
+    channel.basic_publish(exchange='', routing_key="user_queue", body=f"User {new_user.id} created")
+
+    return new_user
+
+
+# Получение списка пользователей
+
+@app.get("/users/")
+async def get_users(session: AsyncSession = Depends(get_session)):
+    # Используем select для запроса всех пользователей
+
+    result = await session.execute(select(User))
+    users = result.scalars().all()  # Получаем все результаты как объекты User
+    return users
+

@@ -1,17 +1,17 @@
-    # Базовый образ Python
+# Используем базовый образ Python
 FROM python:3.9
 
-# Установка рабочей директории
+# Устанавливаем рабочую директорию
 WORKDIR /app
 
-# Копирование файлов приложения
-COPY main.py .
+# Копируем файл зависимостей и устанавливаем зависимости
 COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        pkg-config default-libmysqlclient-dev build-essential python3-dev bash
-# Установка зависимостей
-RUN pip install -r requirements.txt
+# Копируем все файлы приложения
+COPY database.py .
+COPY main.py .
+COPY models.py .
 
-# Запуск приложения
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002"]
+# Запускаем FastAPI приложение с помощью uvicorn
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
