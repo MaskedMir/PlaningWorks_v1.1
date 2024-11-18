@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from models import User, Base
 from database import engine, get_session
@@ -6,6 +6,8 @@ from sqlalchemy import select
 import os
 import pika
 import time
+
+from loginreg import check_user_credentials, register_user
 
 rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
 params = pika.URLParameters(rabbitmq_url)
@@ -69,3 +71,16 @@ async def get_users(session: AsyncSession = Depends(get_session)):
     users = result.scalars().all()  # Получаем все результаты как объекты User
     return users
 
+
+@app.post("/login/")
+async def login(login: str, password: str, session: AsyncSession = Depends(get_session)):
+    is_authenticated = await check_user_credentials(login, password, session)
+
+    if not is_authenticated:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    return {"message": "Авторизация успешная"}
+
+@app.post("/register/")
+async def register(login: str, email: str, password: str, session: AsyncSession = Depends(get_session)):
+    return await register_user(login, email, password, session)

@@ -12,6 +12,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY database.py .
 COPY main.py .
 COPY models.py .
+COPY hash_passw.py .
+COPY loginreg.py .
 
 # Запускаем FastAPI приложение с помощью uvicorn
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
