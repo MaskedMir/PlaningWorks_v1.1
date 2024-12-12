@@ -29,6 +29,7 @@ async def check_user_credentials(login: str, passw: str, session: AsyncSession):
     return user  # Возвращаем объект пользователя для дальнейшего использования
 
 
+
 async def register_user(login: str, email: str, password: str, session: AsyncSession):
     # Проверяем, существует ли пользователь с таким именем
     result = await session.execute(select(User).where(User.username == login))
