@@ -1,25 +1,17 @@
-from fastapi import HTTPException
-from fastapi.params import Depends
+from fastapi import HTTPException, status
 import re
-
-from sqlalchemy.dialects.postgresql import psycopg_async
-
-from hash_passw import *
-
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from models import User  # Импорт модели User
-from database import get_session  # Функция получения сессии
+from models import User
+from hash_passw import hpassw
 
 
-async def check_user_credentials(login: str, passw: str, session: AsyncSession = Depends(get_session)):
-    # Проверяем совпадает ли пароль
-    def verify_password(plain_password, hashed_password):
-        hashed_password = str(hpassw(plain_password))
-        if hashed_password == user.password:
-            return True
-        return False
+def is_valid_email(email: str) -> bool:
+    email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(email_regex, email) is not None
 
+
+async def check_user_credentials(login: str, passw: str, session: AsyncSession):
     # Запрашиваем пользователя по имени
     result = await session.execute(select(User).where(User.username == login))
     user = result.scalars().first()
@@ -28,13 +20,13 @@ async def check_user_credentials(login: str, passw: str, session: AsyncSession =
         print(f"Пользователь с логином {login} не найден.")
         return None
 
-    if not verify_password(passw, user.password):
+    # Проверяем совпадает ли пароль
+    hashed_password = str(hpassw(passw))
+    if hashed_password != user.password:
         print(f"Пароль для пользователя {login} неверный.")
         return None
 
-    return True
-
-
+    return user  # Возвращаем объект пользователя для дальнейшего использования
 
 
 async def register_user(login: str, email: str, password: str, session: AsyncSession):
@@ -47,28 +39,23 @@ async def register_user(login: str, email: str, password: str, session: AsyncSes
 
     # Если пользователь существует, выбрасываем исключение
     if existing_user:
-        raise HTTPException(status_code=400, detail="Данное имя занято")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Данное имя занято")
 
     # Хешируем пароль
     hashed_password = str(hpassw(password))
     if not is_valid_email(email):
-        raise HTTPException(status_code=400, detail="Данный email некоректен")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Данный email некорректен")
     elif existing_user_em:
-        raise HTTPException(status_code=400, detail="Данный email занят")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Данный email занят")
 
     # Создаем нового пользователя
     new_user = User(username=login, email=email, password=hashed_password)
     session.add(new_user)
-    await session.commit()  # Сохраняем изменения в базе данных
+    try:
+        await session.commit()  # Сохраняем изменения в базе данных
+        await session.refresh(new_user)
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Регистрация не удалась")
 
-    return {"message": "Вы зарегистрировались!"}
-
-
-
-def is_valid_email(email: str) -> bool:
-    """
-    Проверяет, соответствует ли заданный email стандартному формату.
-    Возвращает True, если email корректный, и False в противном случае.
-    """
-    email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    return re.match(email_regex, email) is not None
+    return new_user
