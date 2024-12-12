@@ -5,6 +5,7 @@ engine = create_engine('postgresql://romblin@localhost/db')
 
 Base = declarative_base()
 
+
 class User(Base):
     __tablename__ = "users"
 
@@ -12,6 +13,7 @@ class User(Base):
     username = Column(String(255), unique=True, nullable=False)
     password = Column(String(255), nullable=False)
     email = Column(String(255), unique=True, nullable=False)
+
 
 class Task(Base):
     __tablename__ = "tasks"
@@ -22,6 +24,7 @@ class Task(Base):
     finishtime = Column(DateTime, nullable=False)
     checked = Column(Boolean, nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
 
 class ServerStatus(Base):
     __tablename__ = "server_status"

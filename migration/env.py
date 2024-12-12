@@ -5,7 +5,7 @@ from sqlalchemy import pool
 
 from alembic import context
 
-from database import *
+from user_service.models import *
 target_metadata = Base.metadata
 
 
