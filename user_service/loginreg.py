@@ -49,7 +49,7 @@ async def register_user(login: str, email: str, password: str, session: AsyncSes
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Данный email занят")
 
     # Создаем нового пользователя
-    new_user = User(username=login, email=email, password=hashed_password)
+    new_user = User(username=login, email=email, password=hashed_password, role="user")
     session.add(new_user)
     try:
         await session.commit()  # Сохраняем изменения в базе данных

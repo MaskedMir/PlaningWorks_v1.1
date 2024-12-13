@@ -1,5 +1,6 @@
 from datetime import timedelta
 from fastapi import FastAPI, Depends, HTTPException, status, Path
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from models import User, Base
 from database import engine, get_session
@@ -8,10 +9,11 @@ import aio_pika
 import asyncio
 import logging
 from authmodul import create_access_token, get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES, oauth2_scheme
-from schemas import UserCreate, UserRead, Token
+from schemas import UserCreate, UserRead, Token, LoginRequest
 from loginreg import check_user_credentials, register_user
 from blacklisted_tokens import blacklist_token
 from fastapi.security import OAuth2PasswordRequestForm
+from hash_passw import hpassw
 
 app = FastAPI()
 
@@ -153,3 +155,49 @@ async def logout(token: str = Depends(oauth2_scheme),
 @app.get("/me/", response_model=UserRead)
 async def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+# Эндпоинт для авторизации админа
+async def authenticate_admin(username: str, password: str, session: AsyncSession = Depends(get_session)):
+
+    def verify_password(plain_password, hashed_password):
+        if hpassw(plain_password) == hashed_password:
+            return True
+        return False
+
+    if username != "Admin":
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    # Пароль для Admin
+    correct_password = "pegidudochnik"
+    if not verify_password(password, hpassw(correct_password)):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    # Получаем данные о пользователе
+    result = await session.execute(select(User).where(User.username == username))
+    user = result.scalars().first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    # Проверяем, что это администратор
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+
+    return user
+
+
+# Эндпоинт для получения токена для админа
+@app.post("/admin/login", response_model=Token)
+async def admin_login(login_request: LoginRequest, session: AsyncSession = Depends(get_session)):
+    user = await authenticate_admin(login_request.username, login_request.password, session)
+
+    # Создаем JWT токен для администратора
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = await create_access_token(
+        data={"sub": user.username},
+        expires_delta=access_token_expires
+    )
+
+    logger.info(f"Admin {user.username} successfully logged in.")
+    return {"access_token": access_token, "token_type": "bearer"}

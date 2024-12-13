@@ -1,7 +1,9 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, ForeignKey, DateTime, Boolean
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Boolean
 
-engine = create_engine('postgresql://romblin@localhost/db')
+# Используем асинхронный движок
+engine = create_async_engine('postgresql+asyncpg://adminka:huivamanedb@localhost:5432/planingworksdb', echo=True)
 
 Base = declarative_base()
 
@@ -13,6 +15,7 @@ class User(Base):
     username = Column(String(255), unique=True, nullable=False)
     password = Column(String(255), nullable=False)
     email = Column(String(255), unique=True, nullable=False)
+    role = Column(String(255), nullable=False)
 
 
 class Task(Base):
