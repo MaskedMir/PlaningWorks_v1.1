@@ -21,3 +21,16 @@ class UserRead(BaseModel):
 
     class Config:
         orm_mode = True
+
+class TaskNumber(BaseModel):
+    number: int
+
+    class Config:
+        orm_mode = True
+
+class CollectionNumber(BaseModel):
+    id: int
+    users_n: int
+    task_n: int
+    awr_task_n: int
+    date: Optional[datetime]

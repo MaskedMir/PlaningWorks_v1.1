@@ -1,7 +1,12 @@
 fastapi
-sqlalchemy
-asyncpg
 uvicorn
+sqlalchemy[asyncio]
+asyncpg
+aio-pika
+python-jose
+passlib[bcrypt]
+jose
 psycopg2
-aio_pika
-app
+pydantic[email]
+python-multipart
+pika

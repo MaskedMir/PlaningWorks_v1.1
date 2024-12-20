@@ -11,7 +11,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Копируем все файлы приложения
 COPY database.py .
 COPY main.py .
-COPY ../models.py .
+COPY models.py .
+COPY schemas.py .
+COPY statistics_collection_service.py .
 
 # Запускаем FastAPI приложение с помощью uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002"]

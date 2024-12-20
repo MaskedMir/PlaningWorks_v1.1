@@ -2,8 +2,8 @@ from fastapi import FastAPI, Depends, HTTPException, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from pydantic import BaseModel
-from models import User, Base, Task
-from database import engine, get_session
+from models import Task
+from database import get_session
 from typing import Optional
 from datetime import datetime
 import os
@@ -29,8 +29,6 @@ rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
 
 @app.on_event("startup")
 async def startup():
-    # Подключение к RabbitMQ с несколькими попытками
-
     max_attempts = 5
     for attempt in range(1, max_attempts + 1):
         try:

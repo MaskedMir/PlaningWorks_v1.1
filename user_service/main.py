@@ -44,6 +44,7 @@ async def startup():
             connection = await aio_pika.connect_robust(rabbitmq_url)
             channel = await connection.channel()
             await channel.declare_queue("task_queue", durable=True)
+            await channel.declare_queue("admin_queue", durable=True)
             app.state.rabbitmq_connection = connection
             app.state.rabbitmq_channel = channel
             logger.info("Успешное подключение к RabbitMQ")
@@ -103,7 +104,6 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), session: Async
         expires_delta=access_token_expires
     )
 
-    # Отправляем сообщение в очередь RabbitMQ асинхронно
     if app.state.rabbitmq_channel:
         try:
             message = aio_pika.Message(
@@ -157,21 +157,11 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
-# Эндпоинт для авторизации админа
 async def authenticate_admin(username: str, password: str, session: AsyncSession = Depends(get_session)):
-
     def verify_password(plain_password, hashed_password):
         if hpassw(plain_password) == hashed_password:
             return True
         return False
-
-    if username != "Admin":
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    # Пароль для Admin
-    correct_password = "pegidudochnik"
-    if not verify_password(password, hpassw(correct_password)):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
 
     # Получаем данные о пользователе
     result = await session.execute(select(User).where(User.username == username))
@@ -179,6 +169,10 @@ async def authenticate_admin(username: str, password: str, session: AsyncSession
 
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+
+    #
+    # if not verify_password(password, user.password):
+    #     raise HTTPException(status_code=401, detail="Invalid password")
 
     # Проверяем, что это администратор
     if user.role != "admin":
@@ -198,6 +192,20 @@ async def admin_login(login_request: LoginRequest, session: AsyncSession = Depen
         data={"sub": user.username},
         expires_delta=access_token_expires
     )
+
+    if app.state.rabbitmq_channel:
+        try:
+            message = aio_pika.Message(
+                body=f"{access_token}".encode(),
+                delivery_mode=aio_pika.DeliveryMode.PERSISTENT
+            )
+            await app.state.rabbitmq_channel.default_exchange.publish(
+                message,
+                routing_key="admin_queue",
+            )
+            logger.info(f"Сообщение о входе пользователя {user.id} отправлено в очередь")
+        except Exception as e:
+            logger.error(f"Ошибка при отправке сообщения в RabbitMQ: {e}")
 
     logger.info(f"Admin {user.username} successfully logged in.")
     return {"access_token": access_token, "token_type": "bearer"}

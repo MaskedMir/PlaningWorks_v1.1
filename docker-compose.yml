@@ -38,6 +38,20 @@ services:
     networks:
       - app-network
 
+  admin_service:
+    build: ./admin_service
+
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - DATABASE_URL=postgresql+asyncpg://adminka:huivamanedb@db:5432/planingworksdb
+    depends_on:
+      - rabbitmq
+      - db
+    ports:
+      - "8002:8002"
+    networks:
+          - app-network
+
 
   db:
     image: postgres:17
