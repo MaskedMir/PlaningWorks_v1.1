@@ -9,17 +9,14 @@ from models import User
 from database import get_session
 from blacklisted_tokens import is_token_blacklisted
 
-SECRET_KEY = "your-secret-key"
+SECRET_KEY = "secret-key"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token/")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login/")
 
 
 async def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    """
-    Создаёт JWT-токен с указанными данными и временем истечения.
-    """
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -31,10 +28,6 @@ async def create_access_token(data: dict, expires_delta: Optional[timedelta] = N
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme), session: AsyncSession = Depends(get_session)):
-    """
-    Зависимость для получения текущего пользователя на основе JWT-токена.
-    Проверяет, что токен не находится в чёрном списке.
-    """
     if is_token_blacklisted(token):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -1,12 +1,10 @@
-from enum import unique
-
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.params import Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from statistics_collection_service import collection_data
-from models import User, Task
+from models import User, Task, ServerStatus
 from database import get_session
 from typing import List
 from schemas import UserRead, TaskRead, TaskNumber, CollectionNumber
@@ -16,8 +14,6 @@ import aio_pika
 import asyncio
 import logging
 
-
-# Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -31,11 +27,6 @@ app = FastAPI()
 rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
 
 
-
-
-
-
-
 @app.on_event("startup")
 async def startup():
     max_attempts = 5
@@ -44,8 +35,8 @@ async def startup():
             connection = await aio_pika.connect_robust(rabbitmq_url)
             channel = await connection.channel()
             await channel.declare_queue("admin_queue", durable=True)
-            app.state.rabbitmq_connection = connection
-            app.state.rabbitmq_channel = channel
+            app.rabbitmq_connection = connection
+            app.rabbitmq_channel = channel
             logger.info("Успешное подключение к RabbitMQ")
             break
         except aio_pika.exceptions.AMQPConnectionError as e:
@@ -54,16 +45,16 @@ async def startup():
                 await asyncio.sleep(5)
             else:
                 logger.error("Не удалось подключиться к RabbitMQ после 5 попыток")
-                app.state.rabbitmq_connection = None
-                app.state.rabbitmq_channel = None
+                app.rabbitmq_connection = None
+                app.rabbitmq_channel = None
 
 
 async def chek_admin_active():
-    if not (hasattr(app.state, 'rabbitmq_channel') and app.state.rabbitmq_channel):
+    if not (hasattr(app, 'rabbitmq_channel') and app.rabbitmq_channel):
         logger.error("Не установлен канал RabbitMQ для потребления сообщений")
 
     logger.error("установлен канал RabbitMQ для потребления сообщений")
-    queue = await app.state.rabbitmq_channel.declare_queue("admin_queue", durable=True)
+    queue = await app.rabbitmq_channel.declare_queue("admin_queue", durable=True)
 
     async with queue.iterator() as queue_iter:
         async for message in queue_iter:
@@ -74,23 +65,17 @@ async def chek_admin_active():
                 return user_token
 
 
-
-
 @app.on_event("shutdown")
 async def shutdown():
-    if hasattr(app.state, 'rabbitmq_connection') and app.rabbitmq_connection:
-        await app.state.rabbitmq_connection.close()
+    if hasattr(app, 'rabbitmq_connection') and app.rabbitmq_connection:
+        await app.rabbitmq_connection.close()
         logger.info("Соединение с RabbitMQ закрыто")
-
-
-
-
 
 
 @app.get("/admin/users/", response_model=List[UserRead])
 async def get_users_by_ids(
-    user_ids: List[int] = Query(..., alias="id", description="Список ID пользователей для получения данных"),
-    session: AsyncSession = Depends(get_session)):
+        user_ids: List[int] = Query(..., alias="id", description="Список ID пользователей для получения данных"),
+        session: AsyncSession = Depends(get_session)):
     chek = await chek_admin_active()
     if chek is None:
         raise HTTPException(status_code=444, detail="Пользователь не являеться администратором")
@@ -98,7 +83,6 @@ async def get_users_by_ids(
         result = await session.execute(select(User).where(User.id.in_(user_ids)))
         users = result.scalars().all()
 
-        # Если не найдено ни одного пользователя, возвращаем ошибку
         if not users:
             raise HTTPException(status_code=404, detail="Пользователи не найдены")
 
@@ -107,8 +91,8 @@ async def get_users_by_ids(
 
 @app.get("/admin/tasks/", response_model=List[TaskRead])
 async def get_tasks_by_ids(
-    task_ids: List[int] = Query(..., alias="id", description="Список ID задач для получения данных"),
-    session: AsyncSession = Depends(get_session)):
+        task_ids: List[int] = Query(..., alias="id", description="Список ID задач для получения данных"),
+        session: AsyncSession = Depends(get_session)):
     chek = await chek_admin_active()
     if chek is None:
         raise HTTPException(status_code=444, detail="Пользователь не являеться администратором")
@@ -120,6 +104,7 @@ async def get_tasks_by_ids(
             raise HTTPException(status_code=404, detail="Задачи не найдены")
 
         return tasks
+
 
 @app.get("/admin/tasks/number/", response_model=TaskNumber)
 async def get_tasks_by_ids(session: AsyncSession = Depends(get_session)):
@@ -152,15 +137,23 @@ async def get_user_by_ids(session: AsyncSession = Depends(get_session)):
 
         return number
 
-@app.get("/admin/save/", response_model=CollectionNumber)
+
+@app.get("/admin/save/")
 async def save_data(session: AsyncSession = Depends(get_session)):
     chek = await chek_admin_active()
     if chek is None:
-        raise HTTPException(status_code=444, detail="Пользователь не являеться аднимистратором")
+        raise HTTPException(status_code=444, detail="Пользователь не является администратором")
     else:
-        result = await collection_data()
-        session.add(result)
-        await session.commit()
-        await session.refresh(result)
+        result = await collection_data(session)
 
-        return {"message": "Статистика успешно созранена"}
+        new_stat = ServerStatus(
+            users_n=result.get("user_n"),
+            task_n=result.get("task_n"),
+            awr_task_n=result.get("awr_task_n"),
+            date=result.get("date"),
+        )
+        session.add(new_stat)
+        await session.commit()
+        await session.refresh(new_stat)
+
+        return {"message": "Статистика успешно сохранена"}

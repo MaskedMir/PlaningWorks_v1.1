@@ -19,30 +19,29 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def collection_data():
-    user_n = collection_user()
-    task_n = collection_task()
-    awr_task = int(task_n // user_n + 1)
+async def collection_data(session: AsyncSession = Depends(get_session)):
+    user_n = await collection_user(session)
+    task_n = await collection_task(session)
+    awr_task = int(task_n // user_n)
 
-    result = {"id": None,
-              "user_n": user_n,
+    result = {"user_n": user_n,
               "task_n": task_n,
-              "awr_task": awr_task,
-              "date": datetime.datetime.now().strftime("%Y-%m-%d")}\
+              "awr_task_n": awr_task,
+              "date": datetime.datetime.now()}
 
     return result
 
 
 async def collection_task(session: AsyncSession = Depends(get_session)):
     result = await session.execute(select(Task))
-    number = {"number_task": len(result.scalars().all())}
+    number = int(len(result.scalars().all()))
 
     return number
 
 
 async def collection_user(session: AsyncSession = Depends(get_session)):
     result = await session.execute(select(User))
-    number = {"number_user": len(result.scalars().all())}
+    number = int(len(result.scalars().all()))
 
     return number
 

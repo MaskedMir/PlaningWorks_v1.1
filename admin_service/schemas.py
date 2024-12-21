@@ -29,7 +29,6 @@ class TaskNumber(BaseModel):
         orm_mode = True
 
 class CollectionNumber(BaseModel):
-    id: int
     users_n: int
     task_n: int
     awr_task_n: int
