@@ -1,0 +1,7 @@
+fastapi
+sqlalchemy
+asyncpg
+uvicorn
+psycopg2
+aio_pika
+app

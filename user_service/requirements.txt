@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlalchemy[asyncio]
+asyncpg
+aio-pika
+python-jose
+passlib[bcrypt]
+jose
+psycopg2
+pydantic[email]
+python-multipart

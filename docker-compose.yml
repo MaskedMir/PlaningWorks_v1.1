@@ -1,0 +1,73 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"    # Порт для приложений
+      - "15672:15672"  # Порт для управления RabbitMQ
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - app-network
+
+  user_service:
+    build: ./user_service
+
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - DATABASE_URL=postgresql+asyncpg://adminka:huivamanedb@db:5432/planingworksdb
+    depends_on:
+      - rabbitmq
+      - db
+    ports:
+      - "8000:8000"
+    networks:
+          - app-network
+
+  task_service:
+    build: ./task_service
+
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - DATABASE_URL=postgresql+asyncpg://adminka:huivamanedb@db:5432/planingworksdb
+    depends_on:
+      - rabbitmq
+      - db
+    ports:
+      - "8001:8001"
+    networks:
+      - app-network
+
+  admin_service:
+    build: ./admin_service
+
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - DATABASE_URL=postgresql+asyncpg://adminka:huivamanedb@db:5432/planingworksdb
+    depends_on:
+      - rabbitmq
+      - db
+    ports:
+      - "8002:8002"
+    networks:
+          - app-network
+
+
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: adminka
+      POSTGRES_PASSWORD: huivamanedb
+      POSTGRES_DB: planingworksdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+networks:
+  app-network:
+
+volumes:
+  postgres_data:
